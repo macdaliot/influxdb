@@ -28,20 +28,20 @@ func mmap(f *os.File, offset int64, length int) ([]byte, error) {
 	// anonymous mapping
 	if f == nil {
 		new := atomic.AddInt64(&totalanon, total)
-		fmt.Printf("[TSM] ANON allocating %d bytes (%d KB). Total ANON: %d (%d KB)\n", total, total*1024, new, new*1024)
+		fmt.Printf("[TSM] ANON allocating %d bytes (%d KB). Total ANON: %d (%d KB)\n", total, total/1024, new, new/1024)
 		return unix.Mmap(-1, 0, length, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE)
 	}
 
 	mmap, err := unix.Mmap(int(f.Fd()), 0, length, syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
 		new := atomic.AddInt64(&totalfile, total)
-		fmt.Printf("[TSM] FILE allocating %d bytes (%d KB). FILE: %d (%d KB)\n", total, total*1024, new, new*1024)
+		fmt.Printf("[TSM] FILE allocating %d bytes (%d KB). FILE: %d (%d KB)\n", total, total/1024, new, new/1024)
 		return nil, err
 	}
 
 	anon, file := atomic.LoadInt64(&totalanon), atomic.LoadInt64(&totalfile)
 	total = (anon + file) - atomic.LoadInt64(&unmappedBytes)
-	fmt.Printf("[TSM] TOTAL is %d bytes (%d KB)\n", total, total*1024)
+	fmt.Printf("[TSM] TOTAL is %d bytes (%d KB)\n", total, total/1024)
 	return mmap, nil
 }
 
@@ -52,11 +52,11 @@ func munmap(b []byte) (err error) {
 		pages++
 	}
 	total := pages * 4096
-	fmt.Printf("[TSM] unmapping %d bytes (%d KB)\n", total, total*1024)
+	fmt.Printf("[TSM] unmapping %d bytes (%d KB)\n", total, total/1024)
 
 	anon, file, unmappedBytes := atomic.LoadInt64(&totalanon), atomic.LoadInt64(&totalfile), atomic.LoadInt64(&unmappedBytes)
 	total = (anon + file) - unmappedBytes
-	fmt.Printf("[TSM] TOTAL is %d bytes (%d KB)\n", total, total*1024)
+	fmt.Printf("[TSM] TOTAL is %d bytes (%d KB)\n", total, total/1024)
 	return unix.Munmap(b)
 }
 
