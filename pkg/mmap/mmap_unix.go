@@ -20,12 +20,6 @@ var (
 
 // Map memory-maps a file.
 func Map(path string, sz int64) ([]byte, error) {
-	pages := sz / 4096
-	if sz%4096 > 0 {
-		pages++
-	}
-	total := pages * 4096
-
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -44,11 +38,17 @@ func Map(path string, sz int64) ([]byte, error) {
 		sz = fi.Size()
 	}
 
+	pages := sz / 4096
+	if sz%4096 > 0 {
+		pages++
+	}
+	total := pages * 4096
+
 	data, err := syscall.Mmap(int(f.Fd()), 0, int(sz), syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
 		return nil, err
 	}
-	new := atomic.AddInt64(&totalfile, int64(sz))
+	new := atomic.AddInt64(&totalfile, int64(total))
 	fmt.Printf("[PKG] allocating %d bytes (%d KB) %s\n", total, total*1024, path)
 	fmt.Printf("[PKG] TOTAL is %d bytes (%d KB)\n", new, new*1024)
 	return data, nil
