@@ -1345,7 +1345,7 @@ func (d *indirectIndex) Close() error {
 		pages++
 	}
 	total := pages * 4096
-	fmt.Printf("Closing TSM index min: %q, max: %q, reducing by %d bytes, %d pages, %d total bytes\n", d.minTime, d.maxKey, need, pages, total)
+	fmt.Printf("Closing TSM index reducing by %d bytes, %d pages, %d total bytes\n", need, pages, total)
 	indexTotal := atomic.LoadUint64(&indexOffsetTotal)
 	indexTotal -= uint64(total)
 	atomic.StoreUint64(&indexOffsetTotal, indexTotal)
