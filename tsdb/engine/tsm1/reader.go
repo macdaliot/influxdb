@@ -1313,8 +1313,15 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		binary.BigEndian.PutUint32(d.offsets[i*4:i*4+4], uint32(v))
 	}
 
-	fmt.Printf("Opened TSM index, allocated %d anonymous offset bytes\n", len(offsets)*4)
-	atomic.AddUint64(&indexOffsetTotal, uint64(len(offsets)*4))
+	need := uint64(len(offsets) * 4)
+	pages := need / 4096
+	if need%4096 > 0 {
+		pages++
+	}
+	total := pages * 4096
+
+	fmt.Printf("Opened TSM index, need %d anonymous offset bytes, %d pages, %d allocated bytes\n", need, pages, total)
+	atomic.AddUint64(&indexOffsetTotal, total)
 	fmt.Printf("Total anon offsets now %d bytes\n", atomic.LoadUint64(&indexOffsetTotal))
 	return nil
 }
@@ -1332,8 +1339,16 @@ func (d *indirectIndex) Close() error {
 	if runtime.GOOS == "windows" {
 		return nil
 	}
-	offsetN := len(d.offsets[:cap(d.offsets)])
-	fmt.Printf("Closing TSM index min: %q, max: %q, reducing by %d bytes\n", d.minTime, d.maxKey, offsetN)
+	need := len(d.offsets[:cap(d.offsets)])
+	pages := need / 4096
+	if need%4096 > 0 {
+		pages++
+	}
+	total := pages * 4096
+	fmt.Printf("Closing TSM index min: %q, max: %q, reducing by %d bytes, %d pages, %d total bytes\n", d.minTime, d.maxKey, need, pages, total)
+	indexTotal := atomic.LoadUint64(&indexOffsetTotal)
+	indexTotal -= uint64(total)
+	atomic.StoreUint64(&indexOffsetTotal, indexTotal)
 	fmt.Printf("Total anon offsets now %d bytes\n", atomic.LoadUint64(&indexOffsetTotal))
 
 	return munmap(d.offsets[:cap(d.offsets)])
