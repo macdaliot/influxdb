@@ -8,12 +8,24 @@
 package mmap
 
 import (
+	"fmt"
 	"os"
+	"sync/atomic"
 	"syscall"
+)
+
+var (
+	totalfile int64
 )
 
 // Map memory-maps a file.
 func Map(path string, sz int64) ([]byte, error) {
+	pages := sz / 4096
+	if sz%4096 > 0 {
+		pages++
+	}
+	total := pages * 4096
+
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -36,14 +48,27 @@ func Map(path string, sz int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	new := atomic.AddInt64(&totalfile, int64(sz))
+	fmt.Printf("[PKG] allocating %d bytes (%d KB) %s\n", total, total*1024, path)
+	fmt.Printf("[PKG] TOTAL is %d bytes (%d KB)\n", new, new*1024)
 	return data, nil
 }
 
 // Unmap closes the memory-map.
 func Unmap(data []byte) error {
 	if data == nil {
+		fmt.Println("DATA NIL!@!@£$!@$!@£!@")
 		return nil
 	}
+
+	pages := int64(len(data)) / 4096
+	if len(data)%4096 > 0 {
+		pages++
+	}
+	total := pages * 4096
+
+	new := atomic.AddInt64(&totalfile, -total)
+	fmt.Printf("[PKG] unmapping %d bytes (%d KB)\n", total, total*1024)
+	fmt.Printf("[PKG] TOTAL is %d bytes (%d KB)\n", new, new*1024)
 	return syscall.Munmap(data)
 }
