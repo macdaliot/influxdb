@@ -15,6 +15,8 @@ import (
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 )
 
+var indexOffsetTotal uint64
+
 // ErrFileInUse is returned when attempting to remove or close a TSM file that is still being used.
 var ErrFileInUse = fmt.Errorf("file still in use")
 
@@ -1311,6 +1313,9 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		binary.BigEndian.PutUint32(d.offsets[i*4:i*4+4], uint32(v))
 	}
 
+	fmt.Printf("Opened TSM index, allocated %d anonymous offset bytes\n", len(offsets)*4)
+	atomic.AddUint64(&indexOffsetTotal, uint64(len(offsets)*4))
+	fmt.Printf("Total anon offsets now %d bytes\n", atomic.LoadUint64(&indexOffsetTotal))
 	return nil
 }
 
@@ -1327,6 +1332,10 @@ func (d *indirectIndex) Close() error {
 	if runtime.GOOS == "windows" {
 		return nil
 	}
+	offsetN := len(d.offsets[:cap(d.offsets)])
+	fmt.Printf("Closing TSM index min: %q, max: %q, reducing by %d bytes\n", d.minTime, d.maxKey, offsetN)
+	fmt.Printf("Total anon offsets now %d bytes\n", atomic.LoadUint64(&indexOffsetTotal))
+
 	return munmap(d.offsets[:cap(d.offsets)])
 }
 
