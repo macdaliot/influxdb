@@ -34,10 +34,10 @@ func mmap(f *os.File, offset int64, length int) ([]byte, error) {
 
 	mmap, err := unix.Mmap(int(f.Fd()), 0, length, syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
-		new := atomic.AddInt64(&totalfile, total)
-		fmt.Printf("[TSM] FILE allocating %d bytes (%d KB). FILE: %d (%d KB)\n", total, total/1024, new, new/1024)
 		return nil, err
 	}
+	new := atomic.AddInt64(&totalfile, total)
+	fmt.Printf("[TSM] FILE allocating %d bytes (%d KB). FILE: %d (%d KB)\n", total, total/1024, new, new/1024)
 
 	anon, file := atomic.LoadInt64(&totalanon), atomic.LoadInt64(&totalfile)
 	total = (anon + file) - atomic.LoadInt64(&unmappedBytes)
