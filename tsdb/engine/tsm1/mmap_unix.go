@@ -52,9 +52,10 @@ func munmap(b []byte) (err error) {
 		pages++
 	}
 	total := pages * 4096
+	unmappedBytes := atomic.AddInt64(&unmappedBytes, total)
 	fmt.Printf("[TSM] unmapping %d bytes (%d KB)\n", total, total/1024)
 
-	anon, file, unmappedBytes := atomic.LoadInt64(&totalanon), atomic.LoadInt64(&totalfile), atomic.LoadInt64(&unmappedBytes)
+	anon, file := atomic.LoadInt64(&totalanon), atomic.LoadInt64(&totalfile)
 	total = (anon + file) - unmappedBytes
 	fmt.Printf("[TSM] TOTAL is %d bytes (%d KB)\n", total, total/1024)
 	return unix.Munmap(b)
