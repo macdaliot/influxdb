@@ -7,6 +7,7 @@
 package tsm1
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/influxdata/influxdb/tsdb"
@@ -1162,7 +1163,6 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 		k.mergedFloatValues.Merge(&v)
 		i++
 	}
-
 	k.blocks = k.blocks[i:]
 
 	return k.chunkFloat(k.merged)
@@ -1244,8 +1244,16 @@ func (k *tsmBatchKeyIterator) mergeInteger() {
 // is true, all the blocks will be decoded, dedup and sorted in in order.  If dedup is false,
 // only blocks that are smaller than the chunk size will be decoded and combined.
 func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
+	defer func() {
+		fmt.Println("EXITING combineInteger, ERROR: ", k.err)
+	}()
+
 	if dedup {
+		fmt.Printf("deduplicating %d blocks in combineInteger for key %q\n", len(k.blocks), k.key)
 		for k.mergedIntegerValues.Len() < k.size && len(k.blocks) > 0 {
+			if (len(k.blocks) == 4518 || len(k.blocks) == 4517) && !k.blocks[0].read() {
+				fmt.Printf("First block not marked as read. readMin %d, readMax %d | minTime %d, maxTime %d\n", k.blocks[0].readMin, k.blocks[0].readMax, k.blocks[0].minTime, k.blocks[0].maxTime)
+			}
 			for len(k.blocks) > 0 && k.blocks[0].read() {
 				k.blocks = k.blocks[1:]
 			}
@@ -1282,8 +1290,26 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 					return nil
 				}
 
+				if len(k.blocks) == 4518 || len(k.blocks) == 4517 {
+					fmt.Printf("Block has %d values and %d timestamps.", len(v.Values), len(v.Timestamps))
+					if len(v.Timestamps) > 0 {
+						fmt.Printf("Min: %d, Max %d\n", v.MinTime(), v.MaxTime())
+					} else {
+						fmt.Println()
+					}
+				}
+
 				// Remove values we already read
 				v.Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
+
+				if len(k.blocks) ==  4518 || len(k.blocks) == 4517 {
+					fmt.Printf("After Exclude Block has %d values and %d timestamps.", len(v.Values), len(v.Timestamps))
+					if len(v.Timestamps) > 0 {
+						fmt.Printf("Min: %d, Max %d\n", v.MinTime(), v.MaxTime())
+					} else {
+						fmt.Println()
+					}
+				}
 
 				// Filter out only the values for overlapping block
 				v.Include(minTime, maxTime)
@@ -1292,11 +1318,21 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 					k.blocks[i].markRead(v.MinTime(), v.MaxTime())
 				}
 
+				if len(k.blocks) == 4518 || len(k.blocks) == 4517 {
+					fmt.Printf("After Include Block has %d values and %d timestamps.", len(v.Values), len(v.Timestamps))
+					if len(v.Timestamps) > 0 {
+						fmt.Printf("Min: %d, Max %d\n", v.MinTime(), v.MaxTime())
+					} else {
+						fmt.Println()
+					}
+				}
+
 				// Apply each tombstone to the block
 				for _, ts := range k.blocks[i].tombstones {
 					v.Exclude(ts.Min, ts.Max)
 				}
 
+				fmt.Printf("[%d] calling k.mergedIntegerValues.Merge (containing %d) with v having len %d and %d blocks\n", i, k.mergedIntegerValues.Len(), v.Len(), len(k.blocks))
 				k.mergedIntegerValues.Merge(&v)
 			}
 		}
@@ -1346,6 +1382,7 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 
 	// The remaining blocks can be combined and we know that they do not overlap and
 	// so we can just append each, sort and re-encode.
+	fmt.Println("ENTERING LOOP 3")
 	for i < len(k.blocks) && k.mergedIntegerValues.Len() < k.size {
 		if k.blocks[i].read() {
 			i++
@@ -1355,6 +1392,7 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 		var v tsdb.IntegerArray
 		if err := DecodeIntegerArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
+			fmt.Println("ENTERING LOOP 3 WITH ERROR ", err)
 			return nil
 		}
 
@@ -1368,13 +1406,15 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 		k.mergedIntegerValues.Merge(&v)
 		i++
 	}
-
+	fmt.Println("LEAVING LOOP 3")
 	k.blocks = k.blocks[i:]
 
 	return k.chunkInteger(k.merged)
 }
 
 func (k *tsmBatchKeyIterator) chunkInteger(dst blocks) blocks {
+	fmt.Println("ENTERING chunkInteger")
+	defer fmt.Println("LEAVING chunkInteger")
 	if k.mergedIntegerValues.Len() > k.size {
 		var values tsdb.IntegerArray
 		values.Timestamps = k.mergedIntegerValues.Timestamps[:k.size]
